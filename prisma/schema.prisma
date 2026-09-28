@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One passage / audio shared by 1–3 questions (TOPIK "41~42" style pair).
+model QGroup {
+  id           String    @id              // seed id (e.g. "L41-03") or generated cuid
+  section      Section
+  typeKey      String
+  topikRange   String
+  instruction  String
+  topic        String
+  difficulty   Int       @default(6)
+  genre        String?
+  passage      String?
+  givenSentence String?
+  script       Json?                      // [{speaker:"M"|"F", text}]
+  prompt       String?                    // 쓰기
+  topicIntro   String?                    // 쓰기 54
+  guideQuestions Json?                    // 쓰기 54
+  chartData    Json?                      // 쓰기 53
+  modelAnswer  String?
+  keyExpressions Json     @default("[]")
+  explanation  Json?                      // 쓰기 tips {ko, uz}
+  audioPath    String?
+  audioFileId  String?                    // Telegram file_id after first send
+  imageFileId  String?                    // 53 chart file_id
+  origin       String    @default("seed") // seed | ai
+  status       QStatus   @default(VALIDATED)
+  createdAt    DateTime  @default(now())
+  questions    Question[]
+}
+
+model Question {
+  id           String   @id @default(cuid())
+  groupId      String
+  group        QGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  section      Section
+  topikNumber  Int
+  typeKey      String
+  stem         String
+  options      Json
+  answerIndex  Int
+  explanation  Json                        // {ko, uz}
+  attempts     Attempt[]
+
+  @@index([groupId])
+}
+
+model Attempt {
+  id          String   @id @default(cuid())
+  questionId  String?
+  question    Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  groupId     String?                      // 쓰기 attempts point to the group
+  dailySetId  String?
+  context     String   @default("daily")   // daily | practice | review | write
+  chosenIndex Int?
+  isCorrect   Boolean?
+  writingText String?
+  charCount   Int?
+  score       Float?
+  maxScore    Float?
+  feedback    Json?
+  durationSec Int?
+  createdAt   DateTime @default(now())
+
+  @@index([dailySetId])
+}
+
+model ReviewItem {
+  id         String   @id @default(cuid())
+  typeKey    String   @unique
+  box        Int      @default(1)
+  nextDueAt  DateTime
+  mastered   Boolean  @default(false)
+}
+
+model DailySet {
+  id           String    @id @default(cuid())
+  date         DateTime  @unique            // local date at 00:00 UTC
+  listeningIds String[]                     // question ids in order
+  readingIds   String[]
+  writingId    String?                      // group id
+  reviewIds    String[]
+  progress     Json      @default("{}")
+  introMessageId Int?
+  sentAt       DateTime?
+  completedAt  DateTime?
+  remindedAt   DateTime?
+}
+
+// Ad-hoc runs: /practice, /write, 🔁 review.
+model Session {
+  id          String   @id @default(cuid())
+  kind        String                         // practice | review
+  questionIds String[]
+  createdAt   DateTime @default(now())
+}
+
+// Writing flow state (survives restarts).
+model WritingState {
+  id         Int      @id @default(1)
+  groupId    String?
+  dailySetId String?
+  startedAt  DateTime?
+  buffer     String   @default("")
+  active     Boolean  @default(false)
+  previousAttemptId String?
+  liveMessageId Int?
+}
+
+model Settings {
+  id            Int     @id @default(1)
+  dailyTime     String  @default("08:00")
+  reminderTime  String  @default("21:00")
+  explainLang   String  @default("ko+uz")
+  paused        Boolean @default(false)
+  ownerId       String?
+}
+
+model AiLog {
+  id        String   @id @default(cuid())
+  purpose   String
+  model     String
+  inputTokens  Int
+  outputTokens Int
+  ok        Boolean
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+enum Section {
+  LISTENING
+  READING
+  WRITING
+}
+enum QStatus {
+  DRAFT
+  VALIDATED
+  REJECTED
+}

@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: topik
+      POSTGRES_PASSWORD: topik
+      POSTGRES_DB: topik
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+  bot:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://topik:topik@db:5432/topik
+    volumes: [audio:/app/assets/audio]
+    depends_on: [db]
+    restart: unless-stopped
+volumes:
+  pgdata:
+  audio:
