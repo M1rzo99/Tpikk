@@ -8,4 +8,4 @@ COPY prisma ./prisma
 RUN npm ci --ignore-scripts && npx prisma generate
 COPY . .
 RUN npm run build
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]
+CMD ["sh", "scripts/start.sh"]
